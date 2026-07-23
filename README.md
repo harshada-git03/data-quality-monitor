@@ -106,27 +106,30 @@ why a quality report is a starting point for a human, not a final verdict.
 ---
 
 ## Project structure
+
+```
 dqm/
 ├── config/
-│ └── rules.yaml # expected schema, thresholds, allowed values, scoring weights
+│   └── rules.yaml          # expected schema, thresholds, allowed values, scoring weights
 ├── data/
-│ ├── incoming/ # new files "arrive" here
-│ ├── archive/ # processed files are moved here (never reprocessed)
-│ └── reference/ # stable dimension tables (customers.csv) - not archived
+│   ├── incoming/           # new files "arrive" here
+│   ├── archive/            # processed files are moved here (never reprocessed)
+│   └── reference/          # stable dimension tables (customers.csv) - not archived
 ├── reports/
-│ ├── html/ # one report per run
-│ └── history.db # SQLite log of every run, powers the trend chart
+│   ├── html/               # one report per run
+│   └── history.db          # SQLite log of every run, powers the trend chart
 ├── src/dqm/
-│ ├── simulator.py # generates fake daily exports with injectable issues
-│ ├── ingestion.py # format-agnostic loader (CSV/Excel/JSON) + folder watcher
-│ ├── validation.py # the check battery - never mutates data
-│ ├── remediation.py # safe auto-fixes only - see philosophy above
-│ ├── scoring.py # issues -> 0-100 score + critical_fail flag
-│ ├── reporting.py # self-contained HTML report generator
-│ ├── history.py # SQLite read/write for run history
-│ ├── alerting.py # Slack + email, env-var driven, clean no-op
-│ └── pipeline.py # orchestrates all of the above for one run
-├── cli.py # entrypoint: simulate / run / status
+│   ├── simulator.py        # generates fake daily exports with injectable issues
+│   ├── ingestion.py        # format-agnostic loader (CSV/Excel/JSON) + folder watcher
+│   ├── validation.py       # the check battery - never mutates data
+│   ├── remediation.py      # safe auto-fixes only - see philosophy above
+│   ├── scoring.py          # issues -> 0-100 score + critical_fail flag
+│   ├── reporting.py        # self-contained HTML report generator
+│   ├── history.py          # SQLite read/write for run history
+│   ├── alerting.py         # Slack + email, env-var driven, clean no-op
+│   └── pipeline.py         # orchestrates all of the above for one run
+├── cli.py                  # entrypoint: simulate / run / status
 ├── .github/workflows/
-│ └── dqm.yml # daily scheduled run + report artifact upload
+│   └── dqm.yml             # daily scheduled run + report artifact upload
 └── requirements.txt
+```
