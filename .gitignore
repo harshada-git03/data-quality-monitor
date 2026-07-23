@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+
+
+data/incoming/*.csv
+data/archive/*.csv
+data/reference/*.csv
+reports/html/*.html
+reports/*.db
+test_scoring.py

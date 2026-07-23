@@ -1,0 +1,122 @@
+# =============================================================================
+# Data Quality Monitor - rule configuration
+# Edit this file to change what "correct" looks like for your data.
+# Nothing in src/ should need to change when thresholds or schemas change.
+# =============================================================================
+
+datasets:
+
+  customers:
+    file_glob: "customers*.csv"
+    primary_key: customer_id
+    freshness:
+      enabled: false          # dimension table, doesn't need to be "fresh" daily
+    schema:
+      columns:
+        customer_id: {dtype: string, required: true}
+        email: {dtype: string, required: true}
+        signup_date: {dtype: date, required: true}
+        country: {dtype: string, required: true}
+        status: {dtype: string, required: true}
+      allow_new_columns: false
+    completeness:
+      max_null_rate:
+        default: 0.02
+        overrides:
+          email: 0.0
+          customer_id: 0.0
+    uniqueness:
+      unique_columns: [customer_id]
+      dedupe_exact_rows: true
+    format_rules:
+      email:
+        pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+      status:
+        allowed_values: [active, inactive, churned, pending]
+      country:
+        allowed_values: [US, CA, UK, DE, FR, AU, IN, BR, MX, JP]
+    range_rules: {}
+    outlier_columns: []
+
+  orders:
+    file_glob: "orders*.csv"
+    primary_key: order_id
+    foreign_keys:
+      - column: customer_id
+        references_dataset: customers
+        references_column: customer_id
+    freshness:
+      enabled: true
+      date_column: order_date
+      max_age_days: 2         # file's newest order_date shouldn't be older than this
+    schema:
+      columns:
+        order_id: {dtype: string, required: true}
+        customer_id: {dtype: string, required: true}
+        order_date: {dtype: date, required: true}
+        amount: {dtype: float, required: true}
+        quantity: {dtype: int, required: true}
+        status: {dtype: string, required: true}
+        discount_code: {dtype: string, required: false}
+      allow_new_columns: false
+    completeness:
+      max_null_rate:
+        default: 0.03
+        overrides:
+          order_id: 0.0
+          customer_id: 0.0
+          amount: 0.0
+    uniqueness:
+      unique_columns: [order_id]
+      dedupe_exact_rows: true
+    format_rules:
+      status:
+        allowed_values: [placed, shipped, delivered, cancelled, refunded]
+    range_rules:
+      amount:
+        min: 0
+        max: null
+      quantity:
+        min: 1
+        max: 1000
+    outlier_columns:
+      method: zscore          # zscore or iqr
+      zscore_threshold: 3.5
+      iqr_multiplier: 1.5
+      columns: [amount, quantity]
+
+# Overall scoring weights - how much each issue category costs, per occurrence,
+# capped per category so one runaway category can't zero out the whole score.
+scoring:
+  base_score: 100
+  category_weights:
+    schema: 25          # per distinct schema issue (missing/new column, wrong dtype)
+    completeness: 0.5   # per column over its null threshold, scaled by how far over
+    uniqueness: 8        # per duplicate-key group found
+    format: 0.2          # per row failing a format/range/allowed-value rule
+    outlier: 0.1         # per flagged outlier row
+    referential: 5        # per orphaned foreign key row
+    freshness: 20        # flat, if freshness check fails
+  category_caps:
+    schema: 50
+    completeness: 20
+    uniqueness: 30
+    format: 20
+    outlier: 10
+    referential: 30
+    freshness: 20
+  critical_categories: [schema, referential, freshness]  # any issue here also triggers "critical_fail"
+
+alerting:
+  quality_score_threshold: 80   # alert if score drops below this
+  always_alert_on_critical: true
+  slack:
+    enabled_env_var: SLACK_WEBHOOK_URL   # alert fires only if this env var is set
+  email:
+    enabled_env_var: DQM_SMTP_HOST
+    from_env_var: DQM_ALERT_FROM
+    to_env_var: DQM_ALERT_TO
+    smtp_host_env_var: DQM_SMTP_HOST
+    smtp_port_env_var: DQM_SMTP_PORT
+    smtp_user_env_var: DQM_SMTP_USER
+    smtp_pass_env_var: DQM_SMTP_PASS
