@@ -1,0 +1,78 @@
+name: Daily Data Quality Check
+
+on:
+  schedule:
+   
+    - cron: "0 7 * * *"
+  workflow_dispatch:       
+    inputs:
+      severity:
+        description: "Simulated severity for this run (clean/minor/major/critical)"
+        required: false
+        default: "clean"
+        type: choice
+        options: [clean, minor, major, critical]
+
+jobs:
+  data-quality-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore historical run database
+        uses: actions/cache@v4
+        with:
+          path: reports/history.db
+          key: dqm-history-${{ github.run_id }}
+          restore-keys: dqm-history-
+
+      
+      - name: Simulate today's data export
+        run: python cli.py simulate --severity ${{ github.event.inputs.severity || 'clean' }}
+
+      - name: Run data quality pipeline
+        id: dqm_run
+        run: python cli.py run
+        continue-on-error: true   # so we can still upload the report even on a critical failure
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-quality-report-${{ github.run_number }}
+          path: reports/html/
+          retention-days: 90
+
+      - name: Commit updated history database back to the repo
+        run: |
+          git config user.name "dqm-bot"
+          git config user.email "dqm-bot@users.noreply.github.com"
+          git add reports/history.db
+          git diff --cached --quiet || git commit -m "Update quality score history [skip ci]"
+          git push
+        continue-on-error: true
+
+      - name: Fail the workflow if a critical check failed
+        if: steps.dqm_run.outcome == 'failure'
+        run: |
+          echo "::error::Data quality run reported a critical failure. See the uploaded report artifact."
+          exit 1
+
+    env:
+      
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      DQM_SMTP_HOST: ${{ secrets.DQM_SMTP_HOST }}
+      DQM_SMTP_PORT: ${{ secrets.DQM_SMTP_PORT }}
+      DQM_SMTP_USER: ${{ secrets.DQM_SMTP_USER }}
+      DQM_SMTP_PASS: ${{ secrets.DQM_SMTP_PASS }}
+      DQM_ALERT_FROM: ${{ secrets.DQM_ALERT_FROM }}
+      DQM_ALERT_TO: ${{ secrets.DQM_ALERT_TO }}

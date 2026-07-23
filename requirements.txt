@@ -3,3 +3,4 @@ numpy
 openpyxl
 pyyaml
 matplotlib
+requests
